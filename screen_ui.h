@@ -114,6 +114,11 @@ class ScreenRecoveryUI : public RecoveryUI {
     const char* const* menu_headers_;
     bool show_menu;
     int menu_items, menu_sel;
+    int screen_height;
+    int screen_first_menu_item;
+    int screen_last_menu_item;
+    int screen_menu_items;
+    bool screen_menu_partial; 
 
     // An alternate text screen, swapped with 'text_' when we're viewing a log file.
     char** file_viewer_text_;
@@ -138,6 +143,7 @@ class ScreenRecoveryUI : public RecoveryUI {
     bool rtl_locale;
 
     virtual void InitTextParams();
+    virtual void InitMenuParams();
 
     virtual void draw_background_locked();
     virtual void draw_foreground_locked();

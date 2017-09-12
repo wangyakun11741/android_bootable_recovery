@@ -313,7 +313,7 @@ void ScreenRecoveryUI::draw_screen_locked() {
             SetColor(MENU);
             DrawHorizontalRule(&y);
             y += 4;
-            for (int i = 0; i < menu_items; ++i) {
+            for (int i = screen_first_menu_item; i < menu_items; ++i) {
                 if (i == menu_sel) {
                     // Draw the highlight bar.
                     SetColor(IsLongPress() ? MENU_SEL_BG_ACTIVE : MENU_SEL_BG);
@@ -326,6 +326,14 @@ void ScreenRecoveryUI::draw_screen_locked() {
                     gr_text(gr_sys_font(), 4, y, menu_[i], false);
                 }
                 y += char_height_ + 4;
+                if (y + 4 + char_height_ >= screen_height) { 
+                    screen_last_menu_item = i;
+                    if (screen_first_menu_item == 0) {
+                        screen_menu_items = screen_last_menu_item - screen_first_menu_item + 1;
+                        screen_menu_partial = true;
+                    }
+                    break;
+                }
             }
             DrawHorizontalRule(&y);
         }
@@ -467,9 +475,16 @@ void ScreenRecoveryUI::InitTextParams() {
     text_cols_ = gr_fb_width() / char_width_;
 }
 
+void ScreenRecoveryUI::InitMenuParams() {
+    screen_height = gr_fb_height();
+    screen_first_menu_item = screen_last_menu_item = screen_menu_items = 0;
+    screen_menu_partial = false;
+} 
+
 void ScreenRecoveryUI::Init() {
     RecoveryUI::Init();
     InitTextParams();
+    InitMenuParams();
 
     density_ = static_cast<float>(property_get_int32("ro.sf.lcd_density", 160)) / 160.f;
 
@@ -775,6 +790,7 @@ void ScreenRecoveryUI::StartMenu(const char* const * headers, const char* const 
         menu_items = i;
         show_menu = true;
         menu_sel = initial_selection;
+        InitMenuParams(); 
         update_screen_locked();
     }
     pthread_mutex_unlock(&updateMutex);
@@ -787,6 +803,20 @@ int ScreenRecoveryUI::SelectMenu(int sel) {
         int old_sel = menu_sel;
         menu_sel = sel;
 
+        if (screen_menu_partial && sel < screen_first_menu_item) {
+            if (--screen_first_menu_item < 0)
+                screen_first_menu_item  = 0;
+            --screen_last_menu_item;
+        }
+        if (screen_menu_partial && sel > screen_last_menu_item) {
+            ++screen_first_menu_item;
+            ++screen_last_menu_item;
+
+            if (screen_first_menu_item + screen_menu_items >= menu_items) {
+                screen_first_menu_item = menu_items - screen_menu_items; 
+                screen_last_menu_item = menu_items - 1;
+            } 
+        }
         // Wrap at top and bottom.
         if (rainbow) {
             if (menu_sel > old_sel) {
@@ -798,10 +828,18 @@ int ScreenRecoveryUI::SelectMenu(int sel) {
         if (menu_sel < 0) {
             wrapped = -1;
             menu_sel = menu_items - 1;
+            if (screen_menu_partial) {
+                screen_first_menu_item = menu_sel - screen_menu_items + 1;
+                screen_last_menu_item = screen_first_menu_item + screen_menu_items - 1;
+            }
         }
         if (menu_sel >= menu_items) {
             wrapped = 1;
             menu_sel = 0;
+            if (screen_menu_partial) {
+                screen_first_menu_item = 0;
+                screen_last_menu_item = screen_first_menu_item + screen_menu_items - 1;
+            }
         }
         sel = menu_sel;
         if (wrapped != 0) {
